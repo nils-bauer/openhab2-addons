@@ -6,6 +6,6 @@
 
     <name>GPIO Binding</name>
     <description>Add linux GPIO support to openHAB</description>
-    <author>nils-dib</author>
+    <author>nils-developersinblue</author>
 
 </binding:binding>

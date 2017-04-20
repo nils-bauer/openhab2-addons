@@ -5,7 +5,6 @@ Bundle-SymbolicName: org.openhab.binding.gpio;singleton:=true
 Bundle-Vendor: openHAB
 Bundle-Version: 2.0.0.qualifier
 Bundle-RequiredExecutionEnvironment: JavaSE-1.7
-Bundle-ClassPath: ., lib/pi4j-core.jar
 Import-Package: 
  org.openhab.binding.gpio,
  org.openhab.binding.gpio.handler,

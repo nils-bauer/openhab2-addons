@@ -1,12 +1,13 @@
 # GPIO #
 ## Introduction ##
-This binding adds GPIO support via the pi4j libary for openhab2.
+This binding adds GPIO support via the Jpigpio libary for openhab2.
 ## Features ##
 
- - GPIO switch: turn GPIO output on and off
- - GPIO contact: get state of GPIO pin
+ - control Digital GPIOs via openhab
+ - local and remote PIs as bridges
 
 ## How to use ##
-You have to install [wiringpi](http://wiringpi.com/) and run openhab as root (sudo, etc..) to use the addon. 
+You have to install and enable pigpio.
+It is preinstalled on some raspbian images (can be enabled via raspi-config) or can be installed via repo (sudo apt-get install pigpio)
 
 

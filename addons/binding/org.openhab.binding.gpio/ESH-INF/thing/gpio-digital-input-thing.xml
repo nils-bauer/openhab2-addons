@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<thing:thing-descriptions bindingId="gpio" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xmlns:thing="http://eclipse.org/smarthome/schemas/thing-description/v1.0.0"
+	xsi:schemaLocation="http://eclipse.org/smarthome/schemas/thing-description/v1.0.0 http://eclipse.org/smarthome/schemas/thing-description-1.0.0.xsd">
+
+
+	<thing-type id="gpio-digital-input">
+		<supported-bridge-type-refs>
+			<bridge-type-ref id="pigpio-local-bridge" />
+			<bridge-type-ref id="pigpio-remote-bridge" />
+		</supported-bridge-type-refs>
+		<label>GPIO Digital Input Thing</label>
+		<description>Get digital state of a GPIO Pin</description>
+
+		<channels>
+			<channel id="gpio-digital-input" typeId="gpio-digital-input" />
+		</channels>
+		<config-description>
+			<parameter-group name="pin-settings">
+				<advanced>true</advanced>
+				<description>Settings for the GPIO Pin</description>
+				<label>Pin Settings</label>
+			</parameter-group>
+			<parameter-group name="pullup-settings">
+				<advanced>true</advanced>
+				<description>When the value of a GPIO ping has changed it can be double checked after a given amount of time to prevent wrong change events</description>
+				<label>Pullup Settings</label>
+			</parameter-group>
+			<parameter name="gpioId" type="integer" required="true" groupName="pin-settings">
+				<label>GPIO Pin</label>
+				<description>GPIO pin to use as input
+                </description>
+			</parameter>
+			<parameter name="invert" type="boolean" required="true" groupName="pin-settings">
+				<default>false</default>
+				<label>Invert</label>
+			</parameter>
+
+			<parameter name="pullup_time" type="integer" groupName="pullup-settings" min="0">
+				<context>time</context>
+				<label>Delay time</label>
+				<description>Time in ms to double check if value hasn't changed</description>
+				<required>true</required>
+				<default>10</default>
+			</parameter>
+			<parameter name="pullup_strict" type="boolean" groupName="pullup-settings">
+				<label>Strict mode</label>
+				<description>If strict mode enabled, event wouldn't be fired when the value changed in the pullup time period. If not the event would only not be fired when the Value at the end of the time hasn't changed even if it changed in the time between</description>
+				<required>true</required>
+				<default>true</default>
+			</parameter>
+		</config-description>
+	</thing-type>
+
+	<channel-type id="gpio-digital-input">
+		<item-type>Switch</item-type>
+		<label>GPIO switch</label>
+		<description>GPIO input switch</description>
+		<state readOnly="true"></state>
+	</channel-type>
+</thing:thing-descriptions>

@@ -12,25 +12,33 @@ import static org.openhab.binding.gpio.GPIOBindingConstants.*;
 import java.util.HashSet;
 import java.util.Set;
 
+import org.eclipse.smarthome.core.thing.Bridge;
 import org.eclipse.smarthome.core.thing.Thing;
 import org.eclipse.smarthome.core.thing.ThingTypeUID;
 import org.eclipse.smarthome.core.thing.binding.BaseThingHandlerFactory;
 import org.eclipse.smarthome.core.thing.binding.ThingHandler;
-import org.openhab.binding.gpio.handler.GPIOHandler;
+import org.openhab.binding.gpio.handler.GPIODigitalInputHandler;
+import org.openhab.binding.gpio.handler.GPIODigitalOutputHandler;
+import org.openhab.binding.gpio.handler.PigpioBridgeHandler;
+import org.openhab.binding.gpio.handler.PigpioLocalBridgeHandler;
+import org.openhab.binding.gpio.handler.PigpioRemoteBridgeHandler;
 
 /**
  * The {@link GPIOHandlerFactory} is responsible for creating things and thing
  * handlers.
  *
- * @author nils-dib - Initial contribution
+ * @author nils-developersinblue - Initial contribution
  */
 public class GPIOHandlerFactory extends BaseThingHandlerFactory {
 
     private final static Set<ThingTypeUID> SUPPORTED_THING_TYPES_UIDS = new HashSet<ThingTypeUID>();
 
     public GPIOHandlerFactory() {
-        SUPPORTED_THING_TYPES_UIDS.add(THING_TYPE_GPIO_SWITCH);
-        SUPPORTED_THING_TYPES_UIDS.add(THING_TYPE_GPIO_CONTACT);
+        SUPPORTED_THING_TYPES_UIDS.add(THING_TYPE_DIGITAL_INPUT);
+        SUPPORTED_THING_TYPES_UIDS.add(THING_TYPE_DIGITAL_OUTPUT);
+
+        SUPPORTED_THING_TYPES_UIDS.add(THING_TYPE_PIGPIO_LOCAL_BRIDGE);
+        SUPPORTED_THING_TYPES_UIDS.add(THING_TYPE_PIGPIO_REMOTE_BRIDGE);
     }
 
     @Override
@@ -45,12 +53,22 @@ public class GPIOHandlerFactory extends BaseThingHandlerFactory {
 
         ThingTypeUID thingTypeUID = thing.getThingTypeUID();
 
-        if (thingTypeUID.equals(THING_TYPE_GPIO_SWITCH)) {
-            return new GPIOHandler(thing);
-        } else if (thingTypeUID.equals(THING_TYPE_GPIO_CONTACT)) {
-            return new GPIOHandler(thing);
+        if (thingTypeUID.equals(THING_TYPE_DIGITAL_INPUT)) {
+            return new GPIODigitalInputHandler(thing);
+        } else if (thingTypeUID.equals(THING_TYPE_DIGITAL_OUTPUT)) {
+            return new GPIODigitalOutputHandler(thing);
+        } else if (thingTypeUID.equals(THING_TYPE_PIGPIO_LOCAL_BRIDGE)) {
+            return new PigpioLocalBridgeHandler((Bridge) thing);
+        } else if (thingTypeUID.equals(THING_TYPE_PIGPIO_REMOTE_BRIDGE)) {
+            return new PigpioRemoteBridgeHandler((Bridge) thing);
         }
-
         return null;
+    }
+
+    @Override
+    protected synchronized void removeHandler(ThingHandler thingHandler) {
+        if (thingHandler instanceof PigpioBridgeHandler) {
+
+        }
     }
 }

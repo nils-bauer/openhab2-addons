@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<thing:thing-descriptions bindingId="gpio" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xmlns:thing="http://eclipse.org/smarthome/schemas/thing-description/v1.0.0"
+	xsi:schemaLocation="http://eclipse.org/smarthome/schemas/thing-description/v1.0.0 http://eclipse.org/smarthome/schemas/thing-description-1.0.0.xsd">
+
+	<!-- PiGPIO Bridge -->
+	<bridge-type id="pigpio-local-bridge">
+		<label>PiGPIO local Bridge</label>
+		<description>The local pigpio bridge represents a local raspberry pi with pigpio installed.</description>
+
+		<properties>
+			<property name="vendor">Raspberry Pi Foundation</property>
+		</properties>
+	</bridge-type>
+
+</thing:thing-descriptions>

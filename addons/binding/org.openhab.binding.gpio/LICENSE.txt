@@ -17,4 +17,4 @@
      
 Third Party Content
 The Content includes items that have been sourced from third parties. 
-See "LICENSE for pi4j" for license informations for the pi4j libary.
+See "LICENSE for jpigpio.txt" for license informations for the Jpigpio libary.
