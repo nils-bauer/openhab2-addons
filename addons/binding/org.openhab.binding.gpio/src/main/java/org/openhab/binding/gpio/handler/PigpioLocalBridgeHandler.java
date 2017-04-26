@@ -50,8 +50,10 @@ public class PigpioLocalBridgeHandler extends PigpioBridgeHandler {
             jPigpio = new PigpioSocket("localhost", 8888);
             updateStatus(ThingStatus.ONLINE);
         } catch (Exception e) {
-            updateStatus(ThingStatus.UNINITIALIZED, ThingStatusDetail.CONFIGURATION_ERROR, e.getLocalizedMessage());
             logger.error(e.getMessage());
+            e.printStackTrace();
+            updateStatus(ThingStatus.OFFLINE, ThingStatusDetail.CONFIGURATION_ERROR, e.getLocalizedMessage());
+
         }
     }
 
