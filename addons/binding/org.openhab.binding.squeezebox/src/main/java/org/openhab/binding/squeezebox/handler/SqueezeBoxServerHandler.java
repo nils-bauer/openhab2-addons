@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2014-2016 by the respective copyright holders.
+ * Copyright (c) 2010-2017 by the respective copyright holders.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
@@ -19,6 +19,7 @@ import java.io.UnsupportedEncodingException;
 import java.net.Socket;
 import java.net.URLDecoder;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -48,11 +49,14 @@ import org.slf4j.LoggerFactory;
  * @author Ben Jones
  * @author Dan Cunningham (OH2 Port)
  * @author Daniel Walters - Fix player discovery when player name contains spaces
+ * @author Mark Hilbush - Improve reconnect logic. Improve player status updates.
+ * @author Mark Hilbush - Implement AudioSink and notifications
+ * @author Mark Hilbush - Added duration channel
  */
 public class SqueezeBoxServerHandler extends BaseBridgeHandler {
     private Logger logger = LoggerFactory.getLogger(SqueezeBoxServerHandler.class);
 
-    public final static Set<ThingTypeUID> SUPPORTED_THING_TYPES_UIDS = Collections
+    public static final Set<ThingTypeUID> SUPPORTED_THING_TYPES_UIDS = Collections
             .singleton(SQUEEZEBOXSERVER_THING_TYPE);
 
     // time in seconds to try to reconnect
@@ -84,6 +88,8 @@ public class SqueezeBoxServerHandler extends BaseBridgeHandler {
 
     @Override
     public void initialize() {
+        logger.debug("initializing server handler for thing {}", getThing());
+
         scheduler.schedule(new Runnable() {
 
             @Override
@@ -91,13 +97,14 @@ public class SqueezeBoxServerHandler extends BaseBridgeHandler {
                 connect();
             }
         }, 0, TimeUnit.SECONDS);
-    };
+    }
 
     @Override
     public void dispose() {
+        logger.debug("disposing server handler for thing {}", getThing());
         cancelReconnect();
         disconnect();
-    };
+    }
 
     @Override
     public void handleCommand(ChannelUID channelUID, Command command) {
@@ -267,20 +274,17 @@ public class SqueezeBoxServerHandler extends BaseBridgeHandler {
         }
 
         if (!isConnected()) {
-            logger.debug("No connection to SqueezeServer, will attempt to reconnect now...");
-            connect();
-            if (!isConnected()) {
-                logger.error("Failed to reconnect to SqueezeServer, unable to send command {}", command);
-                return;
-            }
+            logger.debug("no connection to squeeze server when trying to send command, returning...");
+            return;
         }
+
         logger.debug("Sending command: {}", command);
         try {
             BufferedWriter writer = new BufferedWriter(new OutputStreamWriter(clientSocket.getOutputStream()));
             writer.write(command + NEW_LINE);
             writer.flush();
         } catch (IOException e) {
-            logger.error("Error while sending command to Squeeze Server (" + command + ")", e);
+            logger.error("Error while sending command to Squeeze Server ({}) ", command, e);
         }
     }
 
@@ -288,6 +292,7 @@ public class SqueezeBoxServerHandler extends BaseBridgeHandler {
      * Connects to a SqueezeBox Server
      */
     private void connect() {
+        logger.trace("attempting to get a connection to the server");
         disconnect();
         SqueezeBoxServerConfig config = getConfigAs(SqueezeBoxServerConfig.class);
         this.host = config.ipAddress;
@@ -301,17 +306,23 @@ public class SqueezeBoxServerHandler extends BaseBridgeHandler {
         try {
             clientSocket = new Socket(host, cliport);
         } catch (IOException e) {
+            logger.debug("unable to open socket to server: {}", e.getMessage());
             updateStatus(ThingStatus.OFFLINE, ThingStatusDetail.OFFLINE.COMMUNICATION_ERROR, e.getMessage());
+            scheduleReconnect();
             return;
         }
 
         try {
             listener = new SqueezeServerListener();
             listener.start();
-            logger.info("Squeeze Server connection started to server " + this.host);
+            logger.debug("listener connection started to server {}:{}", host, cliport);
         } catch (IllegalThreadStateException e) {
             updateStatus(ThingStatus.OFFLINE, ThingStatusDetail.COMMUNICATION_ERROR, e.getMessage());
         }
+
+        // Mark the server ONLINE. bridgeStatusChanged will cause the players to come ONLINE
+        updateStatus(ThingStatus.ONLINE);
+
     }
 
     /**
@@ -344,22 +355,25 @@ public class SqueezeBoxServerHandler extends BaseBridgeHandler {
         }
 
         public void terminate() {
-            logger.debug("Squeeze Server listener being terminated");
+            logger.debug("setting squeeze server listener terminate flag");
             this.terminate = true;
         }
 
         @Override
         public void run() {
             BufferedReader reader = null;
+            boolean endOfStream = false;
+
             try {
                 reader = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()));
                 updateStatus(ThingStatus.ONLINE);
                 requestPlayers();
                 sendCommand("listen 1");
 
-                String message;
+                String message = null;
                 while (!terminate && (message = reader.readLine()) != null) {
-                    logger.debug("Message received: {}", message);
+                    // Message is very long and frequent; only show when running at trace level logging
+                    logger.trace("Message received: {}", message);
 
                     if (message.startsWith("listen 1")) {
                         continue;
@@ -371,8 +385,12 @@ public class SqueezeBoxServerHandler extends BaseBridgeHandler {
                         handlePlayerUpdate(message);
                     }
                 }
+                if (message == null) {
+                    endOfStream = true;
+                }
             } catch (IOException e) {
                 if (!terminate) {
+                    logger.warn("failed to read line from squeeze server socket: {}", e.getMessage());
                     updateStatus(ThingStatus.OFFLINE, ThingStatusDetail.COMMUNICATION_ERROR, e.getMessage());
                     scheduleReconnect();
                 }
@@ -387,6 +405,14 @@ public class SqueezeBoxServerHandler extends BaseBridgeHandler {
                 }
             }
 
+            // check for end of stream from readLine
+            if (endOfStream == true && !terminate) {
+                logger.info("end of stream received from socket during readLine");
+                updateStatus(ThingStatus.OFFLINE, ThingStatusDetail.COMMUNICATION_ERROR,
+                        "end of stream on socket read");
+                scheduleReconnect();
+            }
+
             logger.debug("Squeeze Server listener exiting.");
         }
 
@@ -394,13 +420,12 @@ public class SqueezeBoxServerHandler extends BaseBridgeHandler {
             try {
                 return URLDecoder.decode(raw, "UTF-8");
             } catch (UnsupportedEncodingException e) {
-                logger.debug("Failed to decode '" + raw + "'", e);
+                logger.debug("Failed to decode '{}' ", raw, e);
                 return null;
             }
         }
 
         private void handlePlayersList(String message) {
-
             // Split out players
             String[] playersList = message.split("playerindex\\S*\\s");
             for (String playerParams : playersList) {
@@ -425,11 +450,6 @@ public class SqueezeBoxServerHandler extends BaseBridgeHandler {
                     continue;
                 }
 
-                // if we already know about it, ignore this set of params
-                if (players.containsKey(macAddress)) {
-                    continue;
-                }
-
                 final SqueezeBoxPlayer player = new SqueezeBoxPlayer();
                 player.setMacAddress(macAddress);
                 // populate the player state
@@ -445,17 +465,20 @@ public class SqueezeBoxServerHandler extends BaseBridgeHandler {
                     }
                 }
 
-                players.put(macAddress, player);
+                // Save player if we haven't seen it yet
+                if (!players.containsKey(macAddress)) {
+                    players.put(macAddress, player);
 
-                updatePlayer(new PlayerUpdateEvent() {
-                    @Override
-                    public void updateListener(SqueezeBoxPlayerEventListener listener) {
-                        listener.playerAdded(player);
-                    }
-                });
+                    updatePlayer(new PlayerUpdateEvent() {
+                        @Override
+                        public void updateListener(SqueezeBoxPlayerEventListener listener) {
+                            listener.playerAdded(player);
+                        }
+                    });
 
-                // tell the server we want to subscribe to player updates
-                sendCommand(player.getMacAddress() + " status - 1 subscribe:10 tags:yagJlN");
+                    // tell the server we want to subscribe to player updates
+                    sendCommand(player.getMacAddress() + " status - 1 subscribe:10 tags:yagJlN");
+                }
             }
         }
 
@@ -491,11 +514,11 @@ public class SqueezeBoxServerHandler extends BaseBridgeHandler {
             } else if (messageType.equals("play") || messageType.equals("pause") || messageType.equals("stop")) {
                 // ignore these for now
                 // player.setMode(Mode.valueOf(messageType));
-            } else
-                if (messageType.equals("mixer") || messageType.equals("menustatus") || messageType.equals("button")) {
+            } else if (messageType.equals("mixer") || messageType.equals("menustatus")
+                    || messageType.equals("button")) {
                 // ignore these for now
             } else {
-                logger.debug("Unhandled message type '{}'. Ignoring.", messageType);
+                logger.trace("Unhandled player update message type '{}'.", messageType);
             }
         }
 
@@ -520,7 +543,6 @@ public class SqueezeBoxServerHandler extends BaseBridgeHandler {
                         @Override
                         public void updateListener(SqueezeBoxPlayerEventListener listener) {
                             listener.volumeChangeEvent(mac, volume);
-                            ;
                         }
                     });
                 }
@@ -542,6 +564,17 @@ public class SqueezeBoxServerHandler extends BaseBridgeHandler {
                         @Override
                         public void updateListener(SqueezeBoxPlayerEventListener listener) {
                             listener.currentPlayingTimeEvent(mac, time);
+                        }
+                    });
+                }
+                // Parameter duration
+                else if (messagePart.startsWith("duration%3A")) {
+                    String value = messagePart.substring("duration%3A".length());
+                    final int duration = (int) Double.parseDouble(value);
+                    updatePlayer(new PlayerUpdateEvent() {
+                        @Override
+                        public void updateListener(SqueezeBoxPlayerEventListener listener) {
+                            listener.durationEvent(mac, duration);
                         }
                     });
                 }
@@ -667,19 +700,33 @@ public class SqueezeBoxServerHandler extends BaseBridgeHandler {
                             listener.coverArtChangeEvent(mac, decode(value));
                         }
                     });
+                } else {
+                    // Added to be able to see additional status message types
+                    logger.trace("Unhandled status message type '{}'", messagePart);
                 }
             }
         }
 
         private void handlePlaylistMessage(final String mac, String[] messageParts) {
             String action = messageParts[2];
-            String mode = "play";
+            String mode;
             if (action.equals("newsong")) {
                 mode = "play";
+                // Set the track duration to 0
+                updatePlayer(new PlayerUpdateEvent() {
+                    @Override
+                    public void updateListener(SqueezeBoxPlayerEventListener listener) {
+                        listener.durationEvent(mac, 0);
+                    }
+                });
             } else if (action.equals("pause")) {
                 mode = messageParts[3].equals("0") ? "play" : "pause";
             } else if (action.equals("stop")) {
                 mode = "stop";
+            } else {
+                // Added so that actions (such as delete, index, jump, open) are not treated as "play"
+                logger.trace("Unhandled playlist message type '{}'", Arrays.toString(messageParts));
+                return;
             }
             final String value = mode;
             updatePlayer(new PlayerUpdateEvent() {
@@ -714,7 +761,6 @@ public class SqueezeBoxServerHandler extends BaseBridgeHandler {
                         @Override
                         public void updateListener(SqueezeBoxPlayerEventListener listener) {
                             listener.volumeChangeEvent(mac, volume);
-                            ;
                         }
                     });
                 }
@@ -739,7 +785,6 @@ public class SqueezeBoxServerHandler extends BaseBridgeHandler {
      * @param event
      */
     private void updatePlayer(PlayerUpdateEvent event) {
-
         // update listeners like disco services
         for (SqueezeBoxPlayerEventListener listener : squeezeBoxPlayerListeners) {
             event.updateListener(listener);
@@ -767,6 +812,7 @@ public class SqueezeBoxServerHandler extends BaseBridgeHandler {
      * @return
      */
     public boolean registerSqueezeBoxPlayerListener(SqueezeBoxPlayerEventListener squeezeBoxPlayerListener) {
+        logger.trace("Registering player listener");
         return squeezeBoxPlayerListeners.add(squeezeBoxPlayerListener);
     }
 
@@ -777,6 +823,7 @@ public class SqueezeBoxServerHandler extends BaseBridgeHandler {
      * @return
      */
     public boolean unregisterSqueezeBoxPlayerListener(SqueezeBoxPlayerEventListener squeezeBoxPlayerListener) {
+        logger.trace("Unregistering player listener");
         return squeezeBoxPlayerListeners.remove(squeezeBoxPlayerListener);
     }
 
@@ -794,6 +841,7 @@ public class SqueezeBoxServerHandler extends BaseBridgeHandler {
      * Schedule the server to try and reconnect
      */
     private void scheduleReconnect() {
+        logger.debug("scheduling squeeze server reconnect in {} seconds", RECONNECT_TIME);
         cancelReconnect();
         reconnectFuture = scheduler.schedule(new Runnable() {
             @Override

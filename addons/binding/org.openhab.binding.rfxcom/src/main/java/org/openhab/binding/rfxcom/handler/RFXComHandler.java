@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2014-2016 by the respective copyright holders.
+ * Copyright (c) 2010-2017 by the respective copyright holders.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
@@ -11,7 +11,6 @@ package org.openhab.binding.rfxcom.handler;
 import static org.openhab.binding.rfxcom.RFXComBindingConstants.*;
 
 import java.util.List;
-import java.util.concurrent.ScheduledFuture;
 
 import org.eclipse.smarthome.core.library.types.DecimalType;
 import org.eclipse.smarthome.core.library.types.OnOffType;
@@ -24,12 +23,13 @@ import org.eclipse.smarthome.core.thing.ThingUID;
 import org.eclipse.smarthome.core.thing.binding.BaseThingHandler;
 import org.eclipse.smarthome.core.thing.binding.ThingHandler;
 import org.eclipse.smarthome.core.types.Command;
+import org.eclipse.smarthome.core.types.RefreshType;
 import org.eclipse.smarthome.core.types.State;
 import org.openhab.binding.rfxcom.RFXComValueSelector;
 import org.openhab.binding.rfxcom.internal.DeviceMessageListener;
 import org.openhab.binding.rfxcom.internal.config.RFXComDeviceConfiguration;
 import org.openhab.binding.rfxcom.internal.exceptions.RFXComException;
-import org.openhab.binding.rfxcom.internal.exceptions.RFXComNotImpException;
+import org.openhab.binding.rfxcom.internal.exceptions.RFXComMessageNotImplementedException;
 import org.openhab.binding.rfxcom.internal.messages.RFXComBaseMessage;
 import org.openhab.binding.rfxcom.internal.messages.RFXComBaseMessage.PacketType;
 import org.openhab.binding.rfxcom.internal.messages.RFXComMessage;
@@ -44,14 +44,11 @@ import org.slf4j.LoggerFactory;
  * @author Pauli Anttila - Initial contribution
  */
 public class RFXComHandler extends BaseThingHandler implements DeviceMessageListener {
+    private static final int LOW_BATTERY_LEVEL = 1;
 
-    private Logger logger = LoggerFactory.getLogger(RFXComHandler.class);
+    private final Logger logger = LoggerFactory.getLogger(RFXComHandler.class);
 
-    private final int LOW_BATTERY_LEVEL = 1;
-
-    ScheduledFuture<?> refreshJob;
     private RFXComBridgeHandler bridgeHandler;
-
     private RFXComDeviceConfiguration config;
 
     public RFXComHandler(Thing thing) {
@@ -64,31 +61,38 @@ public class RFXComHandler extends BaseThingHandler implements DeviceMessageList
 
         if (bridgeHandler != null) {
 
-            try {
-                PacketType packetType = RFXComMessageFactory
-                        .convertPacketType(channelUID.getThingUID().getThingTypeId().toUpperCase());
+            if (command instanceof RefreshType) {
+                logger.trace("Received unsupported Refresh command");
+            } else {
 
-                RFXComMessage msg = RFXComMessageFactory.createMessage(packetType);
+                try {
 
-                List<RFXComValueSelector> supportedValueSelectors = msg.getSupportedOutputValueSelectors();
+                    PacketType packetType = RFXComMessageFactory
+                            .convertPacketType(channelUID.getThingUID().getThingTypeId().toUpperCase());
 
-                RFXComValueSelector valSelector = RFXComValueSelector.getValueSelector(channelUID.getId());
+                    RFXComMessage msg = RFXComMessageFactory.createMessage(packetType);
 
-                if (supportedValueSelectors.contains(valSelector)) {
-                    msg.setSubType(msg.convertSubType(config.subType));
-                    msg.setDeviceId(config.deviceId);
-                    msg.convertFromState(valSelector, command);
+                    List<RFXComValueSelector> supportedValueSelectors = msg.getSupportedOutputValueSelectors();
 
-                    bridgeHandler.sendMessage(msg);
-                } else {
-                    logger.warn("RFXCOM doesn't support transmitting for channel '{}'", channelUID.getId());
+                    RFXComValueSelector valSelector = RFXComValueSelector.getValueSelector(channelUID.getId());
+
+                    if (supportedValueSelectors.contains(valSelector)) {
+                        msg.setSubType(msg.convertSubType(config.subType));
+                        msg.setDeviceId(config.deviceId);
+                        msg.convertFromState(valSelector, command);
+
+                        bridgeHandler.sendMessage(msg);
+                    } else {
+                        logger.warn("RFXCOM doesn't support transmitting for channel '{}'", channelUID.getId());
+                    }
+
+                } catch (RFXComMessageNotImplementedException e) {
+                    logger.error("Message not supported", e);
+                } catch (RFXComException e) {
+                    logger.error("Transmitting error", e);
                 }
-
-            } catch (RFXComNotImpException e) {
-                logger.error("Message not supported", e.getMessage());
-            } catch (RFXComException e) {
-                logger.error("Transmitting error", e.getMessage());
             }
+
         }
     }
 
@@ -151,11 +155,11 @@ public class RFXComHandler extends BaseThingHandler implements DeviceMessageList
             String id = message.getDeviceId();
             if (config.deviceId.equals(id)) {
                 RFXComBaseMessage msg = (RFXComBaseMessage) message;
-                String receivedId = packetTypeThingMap.get(msg.packetType).getId();
+                String receivedId = PACKET_TYPE_THING_TYPE_UID_MAP.get(msg.packetType).getId();
+                logger.debug("Received message from bridge: {} message: {}", bridge, message);
 
                 if (receivedId.equals(getThing().getThingTypeUID().getId())) {
                     updateStatus(ThingStatus.ONLINE);
-                    logger.debug("Received message from bridge: {} message: {}", bridge, message);
 
                     List<RFXComValueSelector> supportedValueSelectors = msg.getSupportedInputValueSelectors();
 
@@ -216,6 +220,12 @@ public class RFXComHandler extends BaseThingHandler implements DeviceMessageList
                                 case RAIN_TOTAL:
                                     updateState(CHANNEL_RAIN_TOTAL, message.convertToState(valueSelector));
                                     break;
+                                case RAW_MESSAGE:
+                                    updateState(CHANNEL_RAW_MESSAGE, message.convertToState(valueSelector));
+                                    break;
+                                case RAW_PAYLOAD:
+                                    updateState(CHANNEL_RAW_PAYLOAD, message.convertToState(valueSelector));
+                                    break;
                                 case SET_POINT:
                                     updateState(CHANNEL_SET_POINT, message.convertToState(valueSelector));
                                     break;
@@ -232,8 +242,8 @@ public class RFXComHandler extends BaseThingHandler implements DeviceMessageList
                                 case TEMPERATURE:
                                     updateState(CHANNEL_TEMPERATURE, message.convertToState(valueSelector));
                                     break;
-                                case TOTAL_AMP_HOURS:
-                                    updateState(CHANNEL_TOTAL_AMP_HOURS, message.convertToState(valueSelector));
+                                case TOTAL_AMP_HOUR:
+                                    updateState(CHANNEL_TOTAL_AMP_HOUR, message.convertToState(valueSelector));
                                     break;
                                 case TOTAL_USAGE:
                                     updateState(CHANNEL_TOTAL_USAGE, message.convertToState(valueSelector));
@@ -257,7 +267,7 @@ public class RFXComHandler extends BaseThingHandler implements DeviceMessageList
                 }
             }
         } catch (Exception e) {
-            logger.error("Error occured during message receiving: ", e.getMessage());
+            logger.error("Error occurred during message receiving", e);
         }
     }
 
@@ -270,7 +280,7 @@ public class RFXComHandler extends BaseThingHandler implements DeviceMessageList
     private State convertSignalLevelToSystemWideLevel(State signalLevel) {
 
         int level = ((DecimalType) signalLevel).intValue();
-        int newLevel = 0;
+        int newLevel;
 
         /*
          * RFXCOM signal levels are always between 0-15.
@@ -325,11 +335,6 @@ public class RFXComHandler extends BaseThingHandler implements DeviceMessageList
      * @return Battery level in system wide level
      */
     private State convertBatteryLevelToSystemWideLevel(State batteryLevel) {
-
-        /*
-         * RFXCOM signal levels are always between 0-9.
-         *
-         */
         int level = ((DecimalType) batteryLevel).intValue();
         level = (level + 1) * 10;
         return new DecimalType(level);

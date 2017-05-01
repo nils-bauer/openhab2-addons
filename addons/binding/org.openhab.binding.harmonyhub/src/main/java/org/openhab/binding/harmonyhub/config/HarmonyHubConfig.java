@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2014-2015 openHAB UG (haftungsbeschraenkt) and others.
+ * Copyright (c) 2010-2017 by the respective copyright holders.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
@@ -15,6 +15,6 @@ package org.openhab.binding.harmonyhub.config;
  *
  */
 public class HarmonyHubConfig {
-    public String name;
-    public int discoveryTimeout;
+    public String host;
+    public int heartBeatInterval;
 }

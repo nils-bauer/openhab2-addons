@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2014-2015 openHAB UG (haftungsbeschraenkt) and others.
+ * Copyright (c) 2010-2017 by the respective copyright holders.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
@@ -20,7 +20,7 @@ import org.slf4j.LoggerFactory;
  * @author Gerhard Riegler - Initial contribution
  */
 public class BinRpcServer implements RpcServer {
-    private static final Logger logger = LoggerFactory.getLogger(BinRpcServer.class);
+    private final Logger logger = LoggerFactory.getLogger(BinRpcServer.class);
 
     private Thread networkServiceThread;
     private BinRpcNetworkService networkService;
@@ -37,7 +37,7 @@ public class BinRpcServer implements RpcServer {
      */
     @Override
     public void start() throws IOException {
-        logger.debug("Initializing BIN-RPC server at port {}", config.getCallbackPort());
+        logger.debug("Initializing BIN-RPC server at port {}", config.getBinCallbackPort());
 
         networkService = new BinRpcNetworkService(listener, config);
         networkServiceThread = new Thread(networkService);
@@ -57,7 +57,7 @@ public class BinRpcServer implements RpcServer {
                     networkServiceThread.interrupt();
                 }
             } catch (Exception e) {
-                logger.error(e.getMessage(), e);
+                logger.error("{}", e.getMessage(), e);
             }
             networkService.shutdown();
             networkService = null;

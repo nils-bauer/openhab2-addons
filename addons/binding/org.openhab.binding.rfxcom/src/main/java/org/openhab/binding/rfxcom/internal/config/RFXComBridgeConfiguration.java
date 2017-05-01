@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2014-2016 by the respective copyright holders.
+ * Copyright (c) 2010-2017 by the respective copyright holders.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
@@ -21,6 +21,12 @@ public class RFXComBridgeConfiguration {
     // Configuration for discovered bridge devices
     public String bridgeId;
 
+    // Host for using RFXCOM over TCP/IP
+    public String host;
+
+    // Port for using RFXCOM over TCP/IP
+    public int port;
+
     public String transceiverType;
 
     // Won't configure protocols to RFXCOM transceiver
@@ -40,7 +46,6 @@ public class RFXComBridgeConfiguration {
     public boolean enableBlindsT1T2T3T4;
     public boolean enableBlindsT0;
     public boolean enableProGuard;
-    public boolean enableFS20;
     public boolean enableLaCrosse;
     public boolean enableHidekiUPM;
     public boolean enableADLightwaveRF;
