@@ -40,7 +40,6 @@ public class PigpioRemoteBridgeHandler extends PigpioBridgeHandler {
     @Override
     public void dispose() {
         updateStatus(ThingStatus.UNINITIALIZED);
-        logger.debug("Handler disposed.");
     }
 
     @Override

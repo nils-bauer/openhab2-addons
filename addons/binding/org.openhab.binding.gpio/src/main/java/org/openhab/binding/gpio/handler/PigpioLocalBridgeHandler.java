@@ -12,6 +12,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import jpigpio.JPigpio;
+import jpigpio.PigpioException;
 import jpigpio.PigpioSocket;
 
 /**
@@ -37,23 +38,20 @@ public class PigpioLocalBridgeHandler extends PigpioBridgeHandler {
     @Override
     public void dispose() {
         updateStatus(ThingStatus.UNINITIALIZED);
-        logger.debug("Handler disposed.");
     }
 
     @Override
     public void initialize() {
         logger.debug("Initializing local PiGPIO bridge handler.");
+        // TODO Use native code (JpigpioC has to be bundled native in OSGI)
+        // Till than just use localhost ;P
+        // jPigpio = new Pigpio();
         try {
-            // TODO Use native code (JpigpioC has to be bundled native in OSGI)
-            // Till than just use localhost ;P
-            // jPigpio = new Pigpio();
             jPigpio = new PigpioSocket("localhost", 8888);
             updateStatus(ThingStatus.ONLINE);
-        } catch (Exception e) {
-            logger.error(e.getMessage());
-            e.printStackTrace();
+        } catch (PigpioException e) {
+            logger.error("Unknown jPigpio error", e);
             updateStatus(ThingStatus.OFFLINE, ThingStatusDetail.CONFIGURATION_ERROR, e.getLocalizedMessage());
-
         }
     }
 

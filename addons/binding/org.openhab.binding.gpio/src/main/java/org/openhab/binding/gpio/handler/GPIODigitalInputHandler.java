@@ -49,7 +49,6 @@ public class GPIODigitalInputHandler extends BaseThingHandler {
 
                 @Override
                 public void alert(int gpio, int level, long tick) {
-                    logger.debug("GPIO ALERT: gpio " + gpio + " level " + level + " tick " + tick);
                     lastChanged = new Date();
                     new Thread(new Runnable() {
 
@@ -75,26 +74,28 @@ public class GPIODigitalInputHandler extends BaseThingHandler {
                                     }
                                 }
                             } catch (InterruptedException e) {
-                                e.printStackTrace();
+                                logger.error("Unknown exception", e);
                             } catch (PigpioException e) {
-                                e.printStackTrace();
+                                logger.error("Unknown jpigpio exception", e);
                             }
                         }
                     }).start();
                 }
             });
+            logger.info("Setted up change alert");
             updateStatus(ThingStatus.ONLINE);
         } catch (NumberFormatException e) {
             updateStatus(ThingStatus.OFFLINE, ThingStatusDetail.OFFLINE.CONFIGURATION_ERROR, "Pin not numeric");
-            logger.error(e.getMessage());
+            logger.error("Non numeric pin number", e);
         } catch (PigpioException e) {
             if (e.getErrorCode() == PigpioException.PI_BAD_GPIO) {
                 updateStatus(ThingStatus.OFFLINE, ThingStatusDetail.OFFLINE.CONFIGURATION_ERROR, "Bad GPIO Pin");
+                logger.error("Bad GPIO Pin", e);
             } else {
                 updateStatus(ThingStatus.OFFLINE, ThingStatusDetail.OFFLINE.COMMUNICATION_ERROR,
                         e.getLocalizedMessage());
+                logger.error("Unknown jpigpio exception", e);
             }
-            logger.error(e.getMessage());
         }
     }
 

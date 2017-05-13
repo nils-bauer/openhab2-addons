@@ -52,30 +52,28 @@ public class GPIODigitalOutputHandler extends BaseThingHandler {
         try {
             gpio = new GPIO(jPigpio, Integer.parseInt(getConfig().get(GPIO_ID).toString()), 0);
             jPigpio.gpioSetAlertFunc(gpio.getPin(), new Alert() {
-
                 @Override
                 public void alert(int gpio, int level, long tick) {
-                    logger.debug("GPIO ALERT: gpio " + gpio + " level " + level + " tick " + tick);
-                    // TODO Add pullup
                     try {
                         updateState(getThing().getChannel(THING_TYPE_DIGITAL_OUTPUT_CHANNEL).getUID(), getValue());
                     } catch (PigpioException e) {
-                        e.printStackTrace();
+                        logger.error("Unknown jpigpio exception", e);
                     }
                 }
             });
             updateStatus(ThingStatus.ONLINE);
         } catch (NumberFormatException e) {
             updateStatus(ThingStatus.OFFLINE, ThingStatusDetail.OFFLINE.CONFIGURATION_ERROR, "Pin not numeric");
-            logger.error(e.getMessage());
+            logger.error("Non numeric pin number", e);
         } catch (PigpioException e) {
             if (e.getErrorCode() == PigpioException.PI_BAD_GPIO) {
                 updateStatus(ThingStatus.OFFLINE, ThingStatusDetail.OFFLINE.CONFIGURATION_ERROR, "Bad GPIO Pin");
+                logger.error("Bad GPIO Pin", e);
             } else {
                 updateStatus(ThingStatus.OFFLINE, ThingStatusDetail.OFFLINE.COMMUNICATION_ERROR,
                         e.getLocalizedMessage());
+                logger.error("Unknown jpigpio exception", e);
             }
-            logger.error(e.getMessage());
         }
     }
 
@@ -103,7 +101,7 @@ public class GPIODigitalOutputHandler extends BaseThingHandler {
 
     /**
      * Sets the value (inverted)
-     * 
+     *
      * @param onOffType the value
      * @throws PigpioException
      */
