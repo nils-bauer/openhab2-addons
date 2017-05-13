@@ -59,16 +59,19 @@ public class PigpioRemoteBridgeHandler extends PigpioBridgeHandler {
                 updateStatus(ThingStatus.ONLINE);
             } catch (NumberFormatException e) {
                 updateStatus(ThingStatus.OFFLINE, ThingStatusDetail.OFFLINE.CONFIGURATION_ERROR, "Port not numeric");
-                logger.error(e.getMessage());
+                logger.error("Non numeric port", e);
             } catch (PigpioException e) {
                 if (e.getErrorCode() == PigpioException.PI_BAD_SOCKET_PORT) {
                     updateStatus(ThingStatus.OFFLINE, ThingStatusDetail.OFFLINE.CONFIGURATION_ERROR,
                             "Port out of range");
+
+                    logger.error("Port out of range", e);
                 } else {
                     updateStatus(ThingStatus.OFFLINE, ThingStatusDetail.OFFLINE.COMMUNICATION_ERROR,
                             e.getLocalizedMessage());
+
+                    logger.error("Unknown jPigpio error", e);
                 }
-                logger.error(e.getMessage());
             }
         }
     }
