@@ -41,6 +41,7 @@
     <module>org.openhab.binding.freebox</module>
     <module>org.openhab.binding.fronius</module>
     <module>org.openhab.binding.ftpupload</module>
+    <module>org.openhab.binding.gpio</module>
     <module>org.openhab.binding.gardena</module>
     <module>org.openhab.binding.harmonyhub</module>
     <module>org.openhab.binding.hdanywhere</module>
