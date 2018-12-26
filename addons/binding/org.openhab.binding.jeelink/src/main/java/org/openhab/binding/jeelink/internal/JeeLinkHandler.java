@@ -39,7 +39,7 @@ import org.slf4j.LoggerFactory;
  * @author Volker Bier - Initial contribution
  */
 public class JeeLinkHandler extends BaseBridgeHandler implements BridgeHandler, ConnectionListener {
-    private static final Pattern READING_P = Pattern.compile("^OK\\s+([0-9]+)(?:\\s+([0-9]+))+$");
+    private static final Pattern READING_P = Pattern.compile("^OK\\s+(WS|[0-9]+)(?:\\s+([0-9]+))+$");
 
     private final Logger logger = LoggerFactory.getLogger(JeeLinkHandler.class);
 
@@ -52,6 +52,9 @@ public class JeeLinkHandler extends BaseBridgeHandler implements BridgeHandler, 
     private AtomicBoolean connectionInitialized = new AtomicBoolean(false);
     private ScheduledFuture<?> connectJob;
     private ScheduledFuture<?> initJob;
+
+    private long lastReadingTime;
+    private ScheduledFuture<?> monitorJob;
 
     public JeeLinkHandler(Bridge bridge) {
         super(bridge);
@@ -87,6 +90,27 @@ public class JeeLinkHandler extends BaseBridgeHandler implements BridgeHandler, 
         }, cfg.initDelay, TimeUnit.SECONDS);
 
         logger.debug("Init commands scheduled in {} seconds.", cfg.initDelay);
+
+        if (cfg.reconnectInterval > 0) {
+            monitorJob = scheduler.scheduleWithFixedDelay(new Runnable() {
+                private long lastMonitorTime;
+
+                @Override
+                public void run() {
+                    if (getThing().getStatus() == ThingStatus.ONLINE && lastReadingTime < lastMonitorTime) {
+                        logger.debug("Monitoring job for port {} detected missing readings. Triggering reconnect...",
+                                connection.getPort());
+
+                        connection.closeConnection();
+                        updateStatus(ThingStatus.OFFLINE);
+
+                        connection.openConnection();
+                    }
+                    lastMonitorTime = System.currentTimeMillis();
+                }
+            }, cfg.reconnectInterval, cfg.reconnectInterval, TimeUnit.SECONDS);
+            logger.debug("Monitoring job started.");
+        }
     }
 
     @Override
@@ -99,12 +123,18 @@ public class JeeLinkHandler extends BaseBridgeHandler implements BridgeHandler, 
         if (initJob != null) {
             initJob.cancel(true);
         }
+        if (monitorJob != null) {
+            monitorJob.cancel(true);
+        }
     }
 
     @Override
     public void connectionAborted(String cause) {
         updateStatus(ThingStatus.OFFLINE, ThingStatusDetail.COMMUNICATION_ERROR, cause);
 
+        if (monitorJob != null) {
+            monitorJob.cancel(true);
+        }
         if (initJob != null) {
             initJob.cancel(true);
         }
@@ -152,6 +182,8 @@ public class JeeLinkHandler extends BaseBridgeHandler implements BridgeHandler, 
 
     @Override
     public void handleInput(String input) {
+        lastReadingTime = System.currentTimeMillis();
+
         Matcher matcher = READING_P.matcher(input);
         if (matcher.matches()) {
             intializeConnection();

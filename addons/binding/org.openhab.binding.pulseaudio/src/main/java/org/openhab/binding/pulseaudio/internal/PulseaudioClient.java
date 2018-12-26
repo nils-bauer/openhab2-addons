@@ -8,6 +8,8 @@
  */
 package org.openhab.binding.pulseaudio.internal;
 
+import static org.openhab.binding.pulseaudio.internal.PulseaudioBindingConstants.*;
+
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.PrintStream;
@@ -19,7 +21,6 @@ import java.util.ArrayList;
 import java.util.List;
 
 import org.apache.commons.lang.StringUtils;
-import org.openhab.binding.pulseaudio.PulseaudioBindingConstants;
 import org.openhab.binding.pulseaudio.internal.cli.Parser;
 import org.openhab.binding.pulseaudio.internal.items.AbstractAudioDeviceConfig;
 import org.openhab.binding.pulseaudio.internal.items.AbstractAudioDeviceConfig.State;
@@ -39,7 +40,6 @@ import org.slf4j.LoggerFactory;
  * On the pulseaudio server the module-cli-protocol-tcp has to be loaded.
  *
  * @author Tobias Bräutigam - Initial contribution
- * @since 1.2.0
  */
 public class PulseaudioClient {
 
@@ -139,21 +139,19 @@ public class PulseaudioClient {
         modules.addAll(Parser.parseModules(listModules()));
 
         items.clear();
-        if (PulseaudioBindingConstants.TYPE_FILTERS.get(PulseaudioBindingConstants.SINK_THING_TYPE.getId()) == true) {
+        if (TYPE_FILTERS.get(SINK_THING_TYPE.getId())) {
             logger.debug("reading sinks");
             items.addAll(Parser.parseSinks(listSinks(), this));
         }
-        if (PulseaudioBindingConstants.TYPE_FILTERS.get(PulseaudioBindingConstants.SOURCE_THING_TYPE.getId()) == true) {
+        if (TYPE_FILTERS.get(SOURCE_THING_TYPE.getId())) {
             logger.debug("reading sources");
             items.addAll(Parser.parseSources(listSources(), this));
         }
-        if (PulseaudioBindingConstants.TYPE_FILTERS
-                .get(PulseaudioBindingConstants.SINK_INPUT_THING_TYPE.getId()) == true) {
+        if (TYPE_FILTERS.get(SINK_INPUT_THING_TYPE.getId())) {
             logger.debug("reading sink-inputs");
             items.addAll(Parser.parseSinkInputs(listSinkInputs(), this));
         }
-        if (PulseaudioBindingConstants.TYPE_FILTERS
-                .get(PulseaudioBindingConstants.SOURCE_OUTPUT_THING_TYPE.getId()) == true) {
+        if (TYPE_FILTERS.get(SOURCE_OUTPUT_THING_TYPE.getId())) {
             logger.debug("reading source-outputs");
             items.addAll(Parser.parseSourceOutputs(listSourceOutputs(), this));
         }
