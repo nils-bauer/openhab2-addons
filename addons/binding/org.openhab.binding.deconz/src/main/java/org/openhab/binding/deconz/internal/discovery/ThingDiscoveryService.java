@@ -1,14 +1,24 @@
 /**
- * Copyright (c) 2010-2018 by the respective copyright holders.
+ * Copyright (c) 2010-2019 Contributors to the openHAB project
  *
- * All rights reserved. This program and the accompanying materials
- * are made available under the terms of the Eclipse Public License v1.0
- * which accompanies this distribution, and is available at
- * http://www.eclipse.org/legal/epl-v10.html
+ * See the NOTICE file(s) distributed with this work for additional
+ * information.
+ *
+ * This program and the accompanying materials are made available under the
+ * terms of the Eclipse Public License 2.0 which is available at
+ * http://www.eclipse.org/legal/epl-2.0
+ *
+ * SPDX-License-Identifier: EPL-2.0
  */
 package org.openhab.binding.deconz.internal.discovery;
 
+import static org.openhab.binding.deconz.internal.BindingConstants.*;
+
+import java.util.Collections;
 import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -21,7 +31,6 @@ import org.eclipse.smarthome.core.thing.ThingTypeUID;
 import org.eclipse.smarthome.core.thing.ThingUID;
 import org.eclipse.smarthome.core.thing.binding.ThingHandler;
 import org.eclipse.smarthome.core.thing.binding.ThingHandlerService;
-import org.openhab.binding.deconz.internal.BindingConstants;
 import org.openhab.binding.deconz.internal.dto.SensorMessage;
 import org.openhab.binding.deconz.internal.handler.DeconzBridgeHandler;
 
@@ -33,45 +42,69 @@ import org.openhab.binding.deconz.internal.handler.DeconzBridgeHandler;
  */
 @NonNullByDefault
 public class ThingDiscoveryService extends AbstractDiscoveryService implements ThingHandlerService {
+    private static final Set<ThingTypeUID> SUPPORTED_THING_TYPES_UIDS = Collections
+            .unmodifiableSet(Stream.of(THING_TYPE_PRESENCE_SENSOR, THING_TYPE_DAYLIGHT_SENSOR, THING_TYPE_POWER_SENSOR,
+                    THING_TYPE_CONSUMPTION_SENSOR, THING_TYPE_LIGHT_SENSOR, THING_TYPE_TEMPERATURE_SENSOR,
+                    THING_TYPE_HUMIDITY_SENSOR, THING_TYPE_PRESSURE_SENSOR, THING_TYPE_SWITCH,
+                    THING_TYPE_OPENCLOSE_SENSOR, THING_TYPE_WATERLEAKAGE_SENSOR).collect(Collectors.toSet()));
 
-    private @NonNullByDefault({}) DeconzBridgeHandler handler;
+    private @Nullable DeconzBridgeHandler handler;
+    private @Nullable ScheduledFuture<?> scanningJob;
 
     public ThingDiscoveryService() {
-        super(Stream.of(BindingConstants.THING_TYPE_PRESENCE_SENSOR, BindingConstants.THING_TYPE_POWER_SENSOR,
-                BindingConstants.THING_TYPE_DAYLIGHT_SENSOR, BindingConstants.THING_TYPE_SWITCH,
-                BindingConstants.THING_TYPE_OPENCLOSE_SENSOR).collect(Collectors.toSet()), 0, true);
+        super(SUPPORTED_THING_TYPES_UIDS, 30);
     }
 
-    /**
-     * Perform a new bridge full state request.
-     */
     @Override
     protected void startScan() {
         handler.requestFullState();
     }
 
+    @Override
+    protected void startBackgroundDiscovery() {
+        if (scanningJob == null || scanningJob.isCancelled()) {
+            scanningJob = scheduler.scheduleWithFixedDelay(this::startScan, 0, 5, TimeUnit.MINUTES);
+        }
+    }
+
+    @Override
+    protected void stopBackgroundDiscovery() {
+        if (scanningJob != null && !scanningJob.isCancelled()) {
+            scanningJob.cancel(true);
+            scanningJob = null;
+        }
+    }
+
     /**
      * Add a sensor device to the discovery inbox.
      *
-     * @param sensor    The sensor description
+     * @param sensor The sensor description
      * @param bridgeUID The bridge UID
      */
     private void addDevice(String sensorID, SensorMessage sensor) {
         ThingTypeUID thingTypeUID;
         if (sensor.type.contains("Daylight")) { // Deconz specific: Software simulated daylight sensor
-            thingTypeUID = BindingConstants.THING_TYPE_DAYLIGHT_SENSOR;
+            thingTypeUID = THING_TYPE_DAYLIGHT_SENSOR;
         } else if (sensor.type.contains("Power")) { // ZHAPower, CLIPPower
-            thingTypeUID = BindingConstants.THING_TYPE_POWER_SENSOR;
+            thingTypeUID = THING_TYPE_POWER_SENSOR;
+        } else if (sensor.type.contains("ZHAConsumption")) { // ZHAConsumption
+            thingTypeUID = THING_TYPE_CONSUMPTION_SENSOR;
         } else if (sensor.type.contains("Presence")) { // ZHAPresence, CLIPPrensence
-            thingTypeUID = BindingConstants.THING_TYPE_PRESENCE_SENSOR;
+            thingTypeUID = THING_TYPE_PRESENCE_SENSOR;
         } else if (sensor.type.contains("Switch")) { // ZHASwitch
-            thingTypeUID = BindingConstants.THING_TYPE_SWITCH;
+            thingTypeUID = THING_TYPE_SWITCH;
         } else if (sensor.type.contains("LightLevel")) { // ZHALightLevel
-            thingTypeUID = BindingConstants.THING_TYPE_LIGHT_SENSOR;
+            thingTypeUID = THING_TYPE_LIGHT_SENSOR;
         } else if (sensor.type.contains("ZHATemperature")) { // ZHATemperature
-            thingTypeUID = BindingConstants.THING_TYPE_TEMPERATURE_SENSOR;
-        } else if (sensor.type.contains("ZHAOpenClose")) { // ZHATemperature
-            thingTypeUID = BindingConstants.THING_TYPE_OPENCLOSE_SENSOR;
+            thingTypeUID = THING_TYPE_TEMPERATURE_SENSOR;
+        } else if (sensor.type.contains("ZHAHumidity")) { // ZHAHumidity
+            thingTypeUID = THING_TYPE_HUMIDITY_SENSOR;
+        } else if (sensor.type.contains("ZHAPressure")) { // ZHAPressure
+            thingTypeUID = THING_TYPE_PRESSURE_SENSOR;
+        } else if (sensor.type.contains("ZHAOpenClose")) { // ZHAOpenClose
+            thingTypeUID = THING_TYPE_OPENCLOSE_SENSOR;
+        } else if (sensor.type.contains("ZHAWater")) { // ZHAWater
+            thingTypeUID = THING_TYPE_WATERLEAKAGE_SENSOR;
         } else {
             return;
         }
@@ -87,13 +120,20 @@ public class ThingDiscoveryService extends AbstractDiscoveryService implements T
 
     @Override
     public void setThingHandler(@Nullable ThingHandler handler) {
-        this.handler = (DeconzBridgeHandler) handler;
-        this.handler.setDiscoveryService(this);
+        if (handler instanceof DeconzBridgeHandler) {
+            this.handler = (DeconzBridgeHandler) handler;
+            this.handler.setDiscoveryService(this);
+        }
     }
 
     @Override
-    public ThingHandler getThingHandler() {
+    public @Nullable ThingHandler getThingHandler() {
         return handler;
+    }
+
+    @Override
+    public void activate() {
+        super.activate(null);
     }
 
     @Override
